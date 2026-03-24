@@ -272,6 +272,50 @@ server.tool(
 );
 
 // ========================================
+// Tool: transferToAgent
+// ========================================
+
+server.tool(
+  "transferToAgent",
+  "Envia o contato do atendente humano para o usuario via WhatsApp, para que o usuario possa iniciar conversa com o atendente.",
+  {
+    userId: z.string().describe("ChatId do usuario que quer falar com atendente (ex: 5562999540017@c.us)"),
+  },
+  async ({ userId }) => {
+    try {
+      const agentNumber = "556299540017";
+      const userChatId = userId.includes("@") ? userId : `${userId}@c.us`;
+
+      const headers = {
+        "Content-Type": "application/json",
+        ...(WAHA_API_KEY ? { "X-API-Key": WAHA_API_KEY } : {}),
+      };
+
+      // Envia contato do atendente para o usuario
+      await axios.post(`${WAHA_BASE_URL}/api/sendContactVcard`, {
+        chatId: userChatId,
+        contacts: [
+          {
+            fullName: "Atendente",
+            phoneNumber: `+${agentNumber}`,
+            whatsappId: agentNumber,
+            vcard: null,
+          },
+        ],
+        session: WAHA_SESSION,
+      }, { headers, timeout: 10000 });
+
+      return jsonTxt({
+        success: true,
+        message: "Contato do atendente enviado para o usuario",
+      });
+    } catch (error) {
+      return jsonTxt({ success: false, error: error.message });
+    }
+  }
+);
+
+// ========================================
 // Start
 // ========================================
 
