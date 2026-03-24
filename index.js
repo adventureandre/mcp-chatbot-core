@@ -283,7 +283,7 @@ server.tool(
   },
   async ({ userId }) => {
     try {
-      const agentNumber = "556299540017";
+      const agentNumber = process.env.AGENT_PHONE_NUMBER || "556299540017";
       const userChatId = userId.includes("@") ? userId : `${userId}@c.us`;
 
       const headers = {
