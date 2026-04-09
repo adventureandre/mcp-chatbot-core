@@ -272,48 +272,53 @@ server.tool(
 );
 
 // ========================================
-// Tool: transferToAgent
+// Tool: transferToAgent — DESABILITADA
 // ========================================
-
-server.tool(
-  "transferToAgent",
-  "Envia o contato do atendente humano para o usuario via WhatsApp, para que o usuario possa iniciar conversa com o atendente.",
-  {
-    userId: z.string().describe("ChatId do usuario que quer falar com atendente (ex: 5562999540017@c.us)"),
-  },
-  async ({ userId }) => {
-    try {
-      const agentNumber = process.env.AGENT_PHONE_NUMBER || "556299540017";
-      const userChatId = userId.includes("@") ? userId : `${userId}@c.us`;
-
-      const headers = {
-        "Content-Type": "application/json",
-        ...(WAHA_API_KEY ? { "X-API-Key": WAHA_API_KEY } : {}),
-      };
-
-      // Envia contato do atendente para o usuario
-      await axios.post(`${WAHA_BASE_URL}/api/sendContactVcard`, {
-        chatId: userChatId,
-        contacts: [
-          {
-            fullName: "Atendente",
-            phoneNumber: `+${agentNumber}`,
-            whatsappId: agentNumber,
-            vcard: null,
-          },
-        ],
-        session: WAHA_SESSION,
-      }, { headers, timeout: 10000 });
-
-      return jsonTxt({
-        success: true,
-        message: "Contato do atendente enviado para o usuario",
-      });
-    } catch (error) {
-      return jsonTxt({ success: false, error: error.message });
-    }
-  }
-);
+// Substituida pelo sistema de UiActions + handoff (Fase 6 do ExpertCustom):
+// agora a transferencia eh feita via UiAction `transfer_to_human_agent`
+// que muda o status da conversa pra AWAITING_HUMAN. O nome confundia a IA
+// (transferToAgent vs transfer_to_human_agent). Comentada pra evitar
+// conflito. Se precisar reativar no futuro, descomenta o bloco abaixo.
+//
+// server.tool(
+//   "transferToAgent",
+//   "Envia o contato do atendente humano para o usuario via WhatsApp, para que o usuario possa iniciar conversa com o atendente.",
+//   {
+//     userId: z.string().describe("ChatId do usuario que quer falar com atendente (ex: 5562999540017@c.us)"),
+//   },
+//   async ({ userId }) => {
+//     try {
+//       const agentNumber = process.env.AGENT_PHONE_NUMBER || "556299540017";
+//       const userChatId = userId.includes("@") ? userId : `${userId}@c.us`;
+//
+//       const headers = {
+//         "Content-Type": "application/json",
+//         ...(WAHA_API_KEY ? { "X-API-Key": WAHA_API_KEY } : {}),
+//       };
+//
+//       // Envia contato do atendente para o usuario
+//       await axios.post(`${WAHA_BASE_URL}/api/sendContactVcard`, {
+//         chatId: userChatId,
+//         contacts: [
+//           {
+//             fullName: "Atendente",
+//             phoneNumber: `+${agentNumber}`,
+//             whatsappId: agentNumber,
+//             vcard: null,
+//           },
+//         ],
+//         session: WAHA_SESSION,
+//       }, { headers, timeout: 10000 });
+//
+//       return jsonTxt({
+//         success: true,
+//         message: "Contato do atendente enviado para o usuario",
+//       });
+//     } catch (error) {
+//       return jsonTxt({ success: false, error: error.message });
+//     }
+//   }
+// );
 
 // ========================================
 // Start
