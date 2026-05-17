@@ -43,13 +43,28 @@ const description =
 const KEY_REGEX = /^[a-z0-9][a-z0-9_:-]*$/i
 
 const inputSchema = {
+  // Provido pelo orquestrador (sistema que chama esse MCP) — a IA nao
+  // precisa controlar esse campo. Garante isolamento entre usuarios
+  // (multi-tenant) pra que cliente A nao leia/sobrescreva o scratch do
+  // cliente B mesmo se a IA usar a mesma key.
+  userId: z
+    .string()
+    .min(1)
+    .max(256)
+    .describe(
+      'Identificador do usuario/sessao. Preenchido AUTOMATICAMENTE pelo ' +
+      'sistema que chama esse MCP — a IA nao precisa fornecer. Usado pra ' +
+      'isolar o storage per-usuario no namespace do Redis.',
+    ),
   key: z
     .string()
     .min(1)
     .max(config.limits.keyMaxLength)
     .regex(KEY_REGEX, 'key deve ser alfanumerica (_ - : permitidos)')
     .describe(
-      'Chave descritiva da sua memoria temporaria. Ex: "carrinho_user_5562", "etapas_pedido_42"',
+      'Nome curto e descritivo do proposito. Ex: "pedido", "carrinho", ' +
+      '"agendamento", "cadastro". NAO precisa incluir userId — o sistema ' +
+      'isola automaticamente por usuario.',
     ),
   data: z
     .union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.any()), z.record(z.any())])
@@ -71,7 +86,7 @@ const inputSchema = {
     ),
 }
 
-async function handler({ key, data, ttl }) {
+async function handler({ userId, key, data, ttl }) {
   return runTool('saveTemporaryData', async () => {
     // Limite de payload pra evitar JSON-bomba/explosao de memoria Redis.
     const payload = JSON.stringify({
@@ -96,7 +111,9 @@ async function handler({ key, data, ttl }) {
       )
     }
 
-    const redisKey = `temp:${key}`
+    // Namespace per-user: cliente A nunca le/escreve no scratch do cliente B
+    // mesmo se a IA usar a mesma key humana ("pedido", "carrinho", etc).
+    const redisKey = `temp:${userId}:${key}`
     try {
       await withCommandTimeout(redis.setEx(redisKey, ttl, payload), 'setEx')
     } catch (err) {

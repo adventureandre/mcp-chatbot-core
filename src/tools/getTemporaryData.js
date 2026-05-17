@@ -15,15 +15,24 @@ const description =
 const KEY_REGEX = /^[a-z0-9][a-z0-9_:-]*$/i
 
 const inputSchema = {
+  userId: z
+    .string()
+    .min(1)
+    .max(256)
+    .describe(
+      'Identificador do usuario/sessao. Preenchido AUTOMATICAMENTE pelo ' +
+      'sistema que chama esse MCP — a IA nao precisa fornecer. Garante ' +
+      'que voce so le seu proprio scratch (mesmo namespace do saveTemporaryData).',
+    ),
   key: z
     .string()
     .min(1)
     .max(config.limits.keyMaxLength)
     .regex(KEY_REGEX, 'key invalida')
-    .describe('Mesma chave usada no saveTemporaryData'),
+    .describe('Mesma chave usada no saveTemporaryData (sem userId — o sistema isola automaticamente)'),
 }
 
-async function handler({ key }) {
+async function handler({ userId, key }) {
   return runTool('getTemporaryData', async () => {
     let redis
     try {
@@ -35,7 +44,7 @@ async function handler({ key }) {
       )
     }
 
-    const redisKey = `temp:${key}`
+    const redisKey = `temp:${userId}:${key}`
     let raw
     try {
       raw = await withCommandTimeout(redis.get(redisKey), 'get')
