@@ -4,24 +4,39 @@ import { ok, fail, runTool } from '../lib/response.js'
 import { config } from '../config.js'
 
 const description =
-  'Bloco de notas TEMPORARIO pra voce usar como "TODO list" durante tarefas longas ou ' +
-  'multi-etapa. Use para registrar o que ja fez, o que falta, dados parciais coletados ' +
-  'entre tool calls. Voce mesma le de volta com getTemporaryData no proximo passo pra ' +
-  'continuar de onde parou. ' +
+  'Bloco de notas TEMPORARIO em key/value (Redis-backed, TTL configuravel) pra voce ' +
+  'rastrear estado QUE EVOLUI ao longo da conversa ou entre tool calls. ' +
   '\n\n' +
-  'EXEMPLOS de uso correto: ' +
-  '\n - carrinho/pedido em construcao antes do usuario confirmar ' +
-  '\n - lista de etapas de um fluxo: [{id:1,what:"consultar DB",done:true}, {id:2,what:"enviar email",done:false}] ' +
-  '\n - IDs/resultados parciais coletados de tools que ainda vao ser usados ' +
-  '\n - rascunho que sera revisado antes do envio final ' +
+  'USE sempre que coletar/agregar informacao em PEDACOS que precisarao ser usadas ou ' +
+  'confirmadas em turnos subsequentes — independente do dominio. Domain-agnostic. ' +
+  '\n\n' +
+  'CENARIOS GENERICOS de uso (mapeie pra qualquer dominio): ' +
+  '\n - Estado em CONSTRUCAO multi-turno: o usuario fornece informacao em pedacos ' +
+  '   (pedido/carrinho/agendamento/formulario/cadastro/orcamento/levantamento). ' +
+  '\n - TODO LIST das suas tarefas longas: checklist de etapas com flag done/pending. ' +
+  '\n - RESULTADOS PARCIAIS de tool calls que serao agregados na resposta final. ' +
+  '\n - RASCUNHOS que serao revisados ou confirmados antes de uma acao definitiva. ' +
+  '\n\n' +
+  'PADRAO MULTI-TURNO (independe de dominio): ' +
+  '\n 1. Usuario fornece um pedaco de info -> SAVE com estado completo ate aqui. ' +
+  '\n 2. Usuario altera/adiciona/remove -> SAVE de novo (sobrescreve, atualiza TTL). ' +
+  '\n 3. Antes de confirmar/resumir/processar -> chame getTemporaryData pra ler exato. ' +
+  '\n 4. Acao final concluida -> deixe expirar OU sobrescreva com status final. ' +
+  '\n\n' +
+  'CONVENCAO DE CHAVE recomendada: combine um proposito + identificador unico do ' +
+  'contexto. Ex: "<proposito>_<userId>" ou "<proposito>_<sessionId>". Garante ' +
+  'isolamento entre usuarios e fluxos. ' +
   '\n\n' +
   'NAO use para: ' +
-  '\n - fatos duraveis sobre o usuario (preferencias, perfil) → memoria de longo prazo ' +
-  '\n - log/auditoria de acoes ' +
-  '\n - dados que precisam sobreviver mais de 24h ' +
+  '\n - Fatos duraveis sobre o usuario (preferencias, perfil) -> memoria de longo prazo. ' +
+  '\n - Log/auditoria de acoes. ' +
+  '\n - Dados que precisam sobreviver mais de 24h. ' +
   '\n\n' +
-  'Sobrescrever a mesma chave atualiza o conteudo (util pra marcar etapa concluida). ' +
-  'TTL default: 1h.'
+  'REGRA-CHAVE: nao confie apenas na memoria do contexto da conversa. Em conversas ' +
+  'longas o LLM pode esquecer/inventar detalhes. Se voce salvou algo, LEIA antes de ' +
+  'confirmar. ' +
+  '\n\n' +
+  'TTL default: 1h. Aumente se a tarefa for longa (ex: ttl=14400 pra 4h, 86400 pra 24h).'
 
 // Restringe a key pra prefixo seguro (evita colisao com outras namespaces
 // do Redis: thread, ratelimit, etc).
