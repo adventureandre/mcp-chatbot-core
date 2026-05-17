@@ -66,8 +66,18 @@ const inputSchema = {
       '"agendamento", "cadastro". NAO precisa incluir userId — o sistema ' +
       'isola automaticamente por usuario.',
     ),
+  // OpenAI exige que arrays no schema declarem 'items'. Lista explicita de
+  // tipos primitivos no items resolve o erro 400 "array schema missing items".
+  // Claude e mais permissivo (aceita array sem items), OpenAI nao.
   data: z
-    .union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.any()), z.record(z.any())])
+    .union([
+      z.string(),
+      z.number(),
+      z.boolean(),
+      z.null(),
+      z.array(z.union([z.string(), z.number(), z.boolean(), z.null(), z.record(z.unknown())])),
+      z.record(z.unknown()),
+    ])
     .describe('Conteudo a salvar — qualquer JSON serializavel'),
   ttl: z
     .number()
