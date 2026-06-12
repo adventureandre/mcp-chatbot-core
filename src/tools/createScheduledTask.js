@@ -76,8 +76,11 @@ const inputSchema = {
     .min(10)
     .max(5000)
     .describe(
-      'Instruções claras do que a IA deve fazer. Será executada como turno normal da IA. ' +
-      'Ex: "Gere um relatório das vendas de hoje e envie"',
+      'O CONTEÚDO que a IA deve gerar/dizer na hora — NÃO escreva "envie por WhatsApp/email" ' +
+      'aqui: a entrega é feita automaticamente pelo deliveryType. ' +
+      'Para um lembrete simples, coloque a própria mensagem do lembrete. ' +
+      'Ex (lembrete): "Diga: Lembrete — você tem reunião agora." ' +
+      'Ex (tarefa): "Gere um resumo das vendas de hoje."',
     ),
   deliveryType: z
     .enum(['internal', 'email', 'whatsapp'])
