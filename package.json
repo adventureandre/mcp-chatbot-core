@@ -1,9 +1,26 @@
 {
-  "name": "mcp-chatbot-core",
-  "version": "1.1.0",
+  "name": "@expertcustom/mcp-chatbot-core",
+  "version": "1.2.0",
+  "description": "MCP server com as tools core do Aurora: memoria temporaria, WhatsApp via WAHA, detector de reset de contexto e criacao de agendamentos",
+  "license": "UNLICENSED",
   "type": "module",
   "main": "index.js",
+  "bin": {
+    "mcp-chatbot-core": "index.js"
+  },
+  "files": [
+    "index.js",
+    "src"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
+    "build": "chmod +x index.js",
+    "prepublishOnly": "npm run build",
     "start": "node index.js",
     "dev": "node --watch index.js"
   },
