@@ -28,6 +28,10 @@ export const config = Object.freeze({
     connectTimeoutMs: readInt('REDIS_CONNECT_TIMEOUT_MS', 3000),
     commandTimeoutMs: readInt('REDIS_COMMAND_TIMEOUT_MS', 2000),
   },
+  aurora: {
+    baseUrl: requireString('AURORA_BASE_URL', 'http://localhost:3334'),
+    timeoutMs: readInt('AURORA_TIMEOUT_MS', 10000),
+  },
   waha: {
     baseUrl: requireString('WAHA_BASE_URL', 'http://localhost:3000'),
     session: requireString('WAHA_SESSION', 'default'),
