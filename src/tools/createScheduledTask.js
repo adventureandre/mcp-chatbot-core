@@ -52,6 +52,17 @@ const inputSchema = {
       'ID da IA dona do agendamento. Preenchido AUTOMATICAMENTE pelo sistema — ' +
       'a IA NÃO precisa fornecer.',
     ),
+  // Preenchido AUTOMATICAMENTE pelo Aurora (ToolExecutor injeta o usuário atual).
+  // A IA não fornece — é o identificador de quem está conversando agora; usado
+  // pra resolver target "self" (lembrar o próprio usuário) sem a IA saber o número.
+  userId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Identificador do usuário da conversa atual. Preenchido AUTOMATICAMENTE pelo ' +
+      'sistema — a IA NÃO precisa fornecer.',
+    ),
   title: z
     .string()
     .min(3)
@@ -71,19 +82,24 @@ const inputSchema = {
   deliveryType: z
     .enum(['internal', 'email', 'whatsapp'])
     .describe(
-      'Onde entregar o resultado: ' +
-      '"internal" (efeito=tools+histórico), ' +
-      '"email" (requer target com email), ' +
-      '"whatsapp" (requer target com número)',
+      'Onde entregar o resultado:\n' +
+      '- "whatsapp": envia no WhatsApp. Para LEMBRAR O PRÓPRIO USUÁRIO da conversa ' +
+      '(ex: "me lembre...", "me avise..."), use target "self" — o sistema entrega ' +
+      'pra ele automaticamente, você NÃO precisa saber o número.\n' +
+      '- "email": envia por email (requer target com o email).\n' +
+      '- "internal": só executa (tools+histórico), NÃO notifica ninguém. ' +
+      'NÃO use internal para lembretes/avisos ao usuário — ele não receberia nada.',
     ),
   target: z
     .string()
     .optional()
     .nullable()
     .describe(
-      'Destino da entrega (obrigatório se deliveryType não é "internal"): ' +
-      'email válido para "email", número WhatsApp para "whatsapp". ' +
-      'Ex: "user@company.com" ou "5562999540017"',
+      'Destino da entrega:\n' +
+      '- "self" → o PRÓPRIO usuário desta conversa (use para "me lembre/me avise" no WhatsApp).\n' +
+      '- email válido para deliveryType "email" (ex: "user@company.com").\n' +
+      '- número/chatId para mandar pra OUTRA pessoa no WhatsApp (ex: "5562999540017").\n' +
+      'Para "internal" não se aplica (deixe vazio).',
     ),
   preset: z
     .object({
@@ -108,17 +124,19 @@ const inputSchema = {
     ),
 }
 
-async function handler({ aiId, title, instruction, deliveryType, target, preset }) {
+async function handler({ aiId, userId, title, instruction, deliveryType, target, preset }) {
   return runTool('createScheduledTask', async () => {
     try {
       logger.info('createScheduledTask_attempting', {
         title,
         deliveryType,
         preset_kind: preset?.kind,
+        self_target: target === 'self',
       })
 
       const response = await auroraClient.post('/mcp/schedules/create', {
         aiId, // injetado pelo Aurora (ToolExecutor) — IA chamadora
+        userId, // injetado pelo Aurora — usado pra resolver target "self"
         title,
         instruction,
         deliveryType,
