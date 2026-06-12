@@ -4,21 +4,27 @@ import { logger } from '../lib/logger.js'
 import { ok, fail, runTool } from '../lib/response.js'
 
 const description =
-  'Cria um agendamento (tarefa recorrente automática) que a IA executa em horários regulares. ' +
+  'Cria um agendamento que a IA executa automaticamente — uma vez só (once) ou em horários regulares (recorrente). ' +
   '\n\n' +
-  'USE quando o usuario pedir pra agendar uma tarefa recorrente, como:\n' +
-  ' - "Me envie um email todo dia às 9h com o resumo"\n' +
-  ' - "Envie uma mensagem no WhatsApp toda segunda às 14h"\n' +
-  ' - "Execute essa verificação todo primeiro dia do mês"\n' +
+  'USE quando o usuario pedir pra agendar algo, como:\n' +
+  ' - "Me lembre amanhã às 9h de ligar pro cliente" → once (uma vez)\n' +
+  ' - "Rode esse follow-up na sexta às 14h" → once (uma vez)\n' +
+  ' - "Me envie um email todo dia às 9h com o resumo" → daily (recorrente)\n' +
+  ' - "Envie uma mensagem no WhatsApp toda segunda às 14h" → weekly\n' +
+  ' - "Execute essa verificação todo primeiro dia do mês" → monthly\n' +
   '\n' +
   'A IA descreve o que fazer em `instruction`, escolhe quando com `preset`, e ' +
   'para onde entregar com `deliveryType` + `target`.\n' +
   '\n' +
-  'TIPOS DE RECORRÊNCIA (preset):\n' +
+  'TIPOS DE QUANDO (preset):\n' +
+  ' - once (UMA VEZ): { kind: "once", date: "YYYY-MM-DD" (futura), hour: H (0-23), minute: M (0-59) } — executa 1x e para\n' +
   ' - hourly: { kind: "hourly", everyHours: N (1-23), minute: M (0-59) }\n' +
   ' - daily: { kind: "daily", hour: H (0-23), minute: M (0-59) }\n' +
   ' - weekly: { kind: "weekly", weekday: D (0=domingo..6=sábado), hour: H, minute: M }\n' +
   ' - monthly: { kind: "monthly", day: D (1-28), hour: H, minute: M }\n' +
+  '\n' +
+  'REGRA: para pedidos pontuais ("amanhã", "dia X", "na sexta") use SEMPRE once. ' +
+  'A data do once precisa ser FUTURA.\n' +
   '\n' +
   'TIPOS DE ENTREGA:\n' +
   ' - "internal": Executa a instrução (efeito = tools + histórico), não entrega externamente\n' +
@@ -81,20 +87,24 @@ const inputSchema = {
     ),
   preset: z
     .object({
-      kind: z.enum(['hourly', 'daily', 'weekly', 'monthly']),
+      kind: z.enum(['hourly', 'daily', 'weekly', 'monthly', 'once']),
       everyHours: z.number().int().min(1).max(23).optional(),
       hour: z.number().int().min(0).max(23).optional(),
       minute: z.number().int().min(0).max(59),
       weekday: z.number().int().min(0).max(6).optional(),
       day: z.number().int().min(1).max(28).optional(),
+      date: z.string().optional(),
     })
     .strict()
     .describe(
-      'Preset de recorrência. Estrutura varia por kind:\n' +
+      'Preset de quando executar. Estrutura varia por kind:\n' +
+      '- once (UMA VEZ SÓ): { kind, date "YYYY-MM-DD" (futura), hour (0-23), minute } — executa 1x e para\n' +
       '- hourly: { kind, everyHours (1-23), minute }\n' +
       '- daily: { kind, hour (0-23), minute }\n' +
       '- weekly: { kind, weekday (0-6), hour, minute }\n' +
-      '- monthly: { kind, day (1-28), hour, minute }',
+      '- monthly: { kind, day (1-28), hour, minute }\n' +
+      'Use "once" para ações pontuais (lembrete/follow-up em data específica); ' +
+      'os demais para tarefas que se repetem.',
     ),
 }
 
