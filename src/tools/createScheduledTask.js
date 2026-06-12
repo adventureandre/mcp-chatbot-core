@@ -103,10 +103,11 @@ const inputSchema = {
     ),
   preset: z
     .object({
-      kind: z.enum(['hourly', 'daily', 'weekly', 'monthly', 'once']),
+      kind: z.enum(['in', 'hourly', 'daily', 'weekly', 'monthly', 'once']),
+      minutes: z.number().int().min(1).optional(),
       everyHours: z.number().int().min(1).max(23).optional(),
       hour: z.number().int().min(0).max(23).optional(),
-      minute: z.number().int().min(0).max(59),
+      minute: z.number().int().min(0).max(59).optional(),
       weekday: z.number().int().min(0).max(6).optional(),
       day: z.number().int().min(1).max(28).optional(),
       date: z.string().optional(),
@@ -114,13 +115,15 @@ const inputSchema = {
     .strict()
     .describe(
       'Preset de quando executar. Estrutura varia por kind:\n' +
-      '- once (UMA VEZ SÓ): { kind, date "YYYY-MM-DD" (futura), hour (0-23), minute } — executa 1x e para\n' +
+      '- in (DAQUI A X — tempo RELATIVO): { kind: "in", minutes: N } — executa 1x daqui a N minutos. ' +
+      'USE ISSO para "daqui 2 minutos", "em 30 min", "daqui 2 horas" (=120). Você NÃO precisa saber a hora atual — o sistema calcula.\n' +
+      '- once (data ABSOLUTA): { kind, date "YYYY-MM-DD" (futura), hour (0-23), minute } — executa 1x na data exata\n' +
       '- hourly: { kind, everyHours (1-23), minute }\n' +
       '- daily: { kind, hour (0-23), minute }\n' +
       '- weekly: { kind, weekday (0-6), hour, minute }\n' +
       '- monthly: { kind, day (1-28), hour, minute }\n' +
-      'Use "once" para ações pontuais (lembrete/follow-up em data específica); ' +
-      'os demais para tarefas que se repetem.',
+      'REGRA: "daqui a X" / "em X min/horas" → SEMPRE "in" (nunca tente adivinhar a hora atual). ' +
+      '"amanhã/dia X às H" → "once". Repetições → daily/weekly/monthly.',
     ),
 }
 
