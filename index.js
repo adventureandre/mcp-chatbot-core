@@ -8,7 +8,7 @@ import { createScheduledTask } from './src/tools/createScheduledTask.js'
 
 const server = new McpServer({
   name: 'mcp-chatbot-core',
-  version: '1.1.0',
+  version: '1.5.0',
 })
 
 const tools = [

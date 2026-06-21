@@ -4,94 +4,70 @@ import { logger } from '../lib/logger.js'
 import { ok, fail, runTool } from '../lib/response.js'
 
 const description =
-  'Cria um agendamento que a IA executa automaticamente — uma vez só (once) ou em horários regulares (recorrente). ' +
-  '\n\n' +
-  'USE quando o usuario pedir pra agendar algo, como:\n' +
-  ' - "Me lembre amanhã às 9h de ligar pro cliente" → once (uma vez)\n' +
-  ' - "Rode esse follow-up na sexta às 14h" → once (uma vez)\n' +
-  ' - "Me envie um email todo dia às 9h com o resumo" → daily (recorrente)\n' +
-  ' - "Envie uma mensagem no WhatsApp toda segunda às 14h" → weekly\n' +
-  ' - "Execute essa verificação todo primeiro dia do mês" → monthly\n' +
-  '\n' +
-  'A IA descreve o que fazer em `instruction`, escolhe quando com `preset`, e ' +
-  'para onde entregar com `deliveryType` + `target`.\n' +
-  '\n' +
-  'TIPOS DE QUANDO (preset):\n' +
-  ' - once (UMA VEZ): { kind: "once", date: "YYYY-MM-DD" (futura), hour: H (0-23), minute: M (0-59) } — executa 1x e para\n' +
-  ' - hourly: { kind: "hourly", everyHours: N (1-23), minute: M (0-59) }\n' +
-  ' - daily: { kind: "daily", hour: H (0-23), minute: M (0-59) }\n' +
-  ' - weekly: { kind: "weekly", weekday: D (0=domingo..6=sábado), hour: H, minute: M }\n' +
-  ' - monthly: { kind: "monthly", day: D (1-28), hour: H, minute: M }\n' +
-  '\n' +
-  'REGRA: para pedidos pontuais ("amanhã", "dia X", "na sexta") use SEMPRE once. ' +
-  'A data do once precisa ser FUTURA.\n' +
-  '\n' +
-  'TIPOS DE ENTREGA:\n' +
-  ' - "internal": Executa a instrução (efeito = tools + histórico), não entrega externamente\n' +
-  ' - "email": Envia o resultado por email (requer `target`)\n' +
-  ' - "whatsapp": Envia o resultado via WhatsApp (requer `target` = número/chatId)\n' +
-  '\n' +
-  'EXEMPLO DE USO:\n' +
-  'user: "Quero um resumo das tarefas todo dia às 9h no meu email"\n' +
-  'ia: [chama createScheduledTask com]\n' +
-  '  title: "Resumo diário de tarefas"\n' +
-  '  instruction: "Liste todas as tarefas pendentes do usuario de forma resumida"\n' +
-  '  deliveryType: "email"\n' +
-  '  target: "user@example.com"\n' +
-  '  preset: { kind: "daily", hour: 9, minute: 0 }\n' +
-  'ia: "Pronto! Vou enviar um resumo para seu email todo dia às 9h da manhã."'
+  'Cria um agendamento que a IA executa automaticamente no futuro — uma vez (once/in) ou recorrente (hourly/daily/weekly/monthly).\n\n' +
+  'USE quando o usuário pedir pra agendar/lembrar algo:\n' +
+  ' - "me lembre amanhã às 9h de ligar pro cliente" → once\n' +
+  ' - "daqui 5 minutos me avisa" → preset in (relativo)\n' +
+  ' - "todo dia às 9h me manda o resumo no email" → daily\n\n' +
+  'COMO PREENCHER:\n' +
+  ' - `instruction`: o CONTEÚDO final que o destinatário vai receber (a mensagem em si), NÃO uma confirmação de agendamento.\n' +
+  ' - `preset`: quando executar (veja os formatos no campo).\n' +
+  ' - `deliveryType` + `target`: por onde entregar. Herde do contexto: se o pedido anterior foi por e-mail, agende por e-mail pro mesmo endereço.\n\n' +
+  'EXEMPLO:\n' +
+  'user: "daqui 5 min manda no meu email joao@x.com um aviso pra revisar o relatório"\n' +
+  'ia → createScheduledTask({\n' +
+  '  title: "Aviso: revisar relatório",\n' +
+  '  instruction: "Diga: Lembrete — revise o relatório, por favor.",\n' +
+  '  deliveryType: "email",\n' +
+  '  target: "joao@x.com",\n' +
+  '  preset: { kind: "in", minutes: 5 }\n' +
+  '})\n' +
+  'ia (fala final ao usuário): "Pronto! Daqui 5 minutos envio o aviso pro joao@x.com."'
 
 const inputSchema = {
-  // Preenchido AUTOMATICAMENTE pelo Aurora (ToolExecutor injeta a IA chamadora).
-  // A IA não fornece — impede criar agendamento atribuído a outra IA.
   aiId: z
     .string()
     .min(1)
     .optional()
-    .describe(
-      'ID da IA dona do agendamento. Preenchido AUTOMATICAMENTE pelo sistema — ' +
-      'a IA NÃO precisa fornecer.',
-    ),
-  // Preenchido AUTOMATICAMENTE pelo Aurora (ToolExecutor injeta o usuário atual).
-  // A IA não fornece — é o identificador de quem está conversando agora; usado
-  // pra resolver target "self" (lembrar o próprio usuário) sem a IA saber o número.
+    .describe('Preenchido AUTOMATICAMENTE pelo sistema — a IA NÃO fornece.'),
   userId: z
     .string()
     .min(1)
     .optional()
-    .describe(
-      'Identificador do usuário da conversa atual. Preenchido AUTOMATICAMENTE pelo ' +
-      'sistema — a IA NÃO precisa fornecer.',
-    ),
+    .describe('Preenchido AUTOMATICAMENTE pelo sistema — a IA NÃO fornece.'),
   title: z
     .string()
     .min(3)
     .max(200)
     .describe(
-      'Título descritivo da tarefa (ex: "Resumo diário", "Verificação de estoque"). ' +
-      'Será exibido no painel de agendamentos.',
+      'Título curto da tarefa (ex: "Lembrete reunião", "Resumo diário"). Vira o ASSUNTO do e-mail.',
     ),
   instruction: z
     .string()
-    .min(10)
     .max(5000)
+    .optional()
     .describe(
-      'O CONTEÚDO que a IA deve gerar/dizer na hora — NÃO escreva "envie por WhatsApp/email" ' +
-      'aqui: a entrega é feita automaticamente pelo deliveryType. ' +
-      'Para um lembrete simples, coloque a própria mensagem do lembrete. ' +
-      'Ex (lembrete): "Diga: Lembrete — você tem reunião agora." ' +
-      'Ex (tarefa): "Gere um resumo das vendas de hoje."',
+      'A MENSAGEM/TEXTO final que o destinatário deve RECEBER quando a tarefa rodar. ' +
+      'Para um lembrete, escreva a mensagem prefixada com "Diga: " (ex: "Diga: Não esqueça da reunião às 15h."). ' +
+      'Para uma tarefa, descreva o que gerar (ex: "Gere um resumo das vendas de hoje."). ' +
+      'NUNCA escreva uma confirmação de agendamento aqui (ex: "agendei...", "pronto, vou enviar...", "vou te lembrar...") — ' +
+      'isso é o que VOCÊ responde ao usuário agora, não o conteúdo da tarefa. (Aceita também o alias `message`.)',
     ),
+  // Alias de compatibilidade: modelos costumam mandar `message`/`text` em vez de
+  // `instruction`. Aceitamos e normalizamos no handler em vez de falhar.
+  message: z
+    .string()
+    .max(5000)
+    .optional()
+    .describe('Alias de `instruction` (compatibilidade). Prefira `instruction`.'),
   deliveryType: z
     .enum(['internal', 'email', 'whatsapp'])
     .describe(
-      'Onde entregar o resultado:\n' +
-      '- "whatsapp": envia no WhatsApp. Para LEMBRAR O PRÓPRIO USUÁRIO da conversa ' +
-      '(ex: "me lembre...", "me avise..."), use target "self" — o sistema entrega ' +
-      'pra ele automaticamente, você NÃO precisa saber o número.\n' +
-      '- "email": envia por email (requer target com o email).\n' +
-      '- "internal": só executa (tools+histórico), NÃO notifica ninguém. ' +
-      'NÃO use internal para lembretes/avisos ao usuário — ele não receberia nada.',
+      'Por onde entregar o resultado:\n' +
+      '- "email": envia por e-mail. Requer `target` com um e-mail válido. Use quando o usuário deu/pediu por e-mail.\n' +
+      '- "whatsapp": envia no WhatsApp. Requer `target` com o número (ex: "5562999990000"). Use só quando há um número na conversa.\n' +
+      '- "internal": só executa (tools + histórico), SEM notificar ninguém. Use para tarefas de bastidor (ex: indexar, processar) — não para avisar o usuário.\n' +
+      'Na dúvida, prefira o canal que o usuário já estava usando nesta conversa.',
     ),
   target: z
     .string()
@@ -99,10 +75,10 @@ const inputSchema = {
     .nullable()
     .describe(
       'Destino da entrega:\n' +
-      '- "self" → o PRÓPRIO usuário desta conversa (use para "me lembre/me avise" no WhatsApp).\n' +
-      '- email válido para deliveryType "email" (ex: "user@company.com").\n' +
-      '- número/chatId para mandar pra OUTRA pessoa no WhatsApp (ex: "5562999540017").\n' +
-      'Para "internal" não se aplica (deixe vazio).',
+      '- e-mail válido quando deliveryType="email" (ex: "user@empresa.com").\n' +
+      '- número/chatId quando deliveryType="whatsapp" (ex: "5562999990000").\n' +
+      '- "self" → o próprio usuário desta conversa, SOMENTE no WhatsApp e SOMENTE se a conversa tiver um número (canais sem WhatsApp rejeitam "self").\n' +
+      '- vazio para deliveryType="internal".',
     ),
   preset: z
     .object({
@@ -116,37 +92,122 @@ const inputSchema = {
       date: z.string().optional(),
     })
     .strict()
+    .optional()
     .describe(
-      'Preset de quando executar. Estrutura varia por kind:\n' +
-      '- in (DAQUI A X — tempo RELATIVO): { kind: "in", minutes: N } — executa 1x daqui a N minutos. ' +
-      'USE ISSO para "daqui 2 minutos", "em 30 min", "daqui 2 horas" (=120). Você NÃO precisa saber a hora atual — o sistema calcula.\n' +
-      '- once (data ABSOLUTA): { kind, date "YYYY-MM-DD" (futura), hour (0-23), minute } — executa 1x na data exata\n' +
-      '- hourly: { kind, everyHours (1-23), minute }\n' +
-      '- daily: { kind, hour (0-23), minute }\n' +
-      '- weekly: { kind, weekday (0-6), hour, minute }\n' +
-      '- monthly: { kind, day (1-28), hour, minute }\n' +
-      'REGRA: "daqui a X" / "em X min/horas" → SEMPRE "in" (nunca tente adivinhar a hora atual). ' +
-      '"amanhã/dia X às H" → "once". Repetições → daily/weekly/monthly.',
+      'Quando executar. Formatos por kind:\n' +
+      '- in (RELATIVO — "daqui a X"): { kind: "in", minutes: N }. Use para "daqui 5 min" (5), "em 2 horas" (120). NÃO precisa saber a hora atual.\n' +
+      '- once (data ABSOLUTA futura): { kind: "once", date: "YYYY-MM-DD", hour: 0-23, minute: 0-59 }.\n' +
+      '- hourly: { kind: "hourly", everyHours: 1-23, minute: 0-59 }.\n' +
+      '- daily: { kind: "daily", hour: 0-23, minute: 0-59 }.\n' +
+      '- weekly: { kind: "weekly", weekday: 0-6 (0=dom), hour, minute }.\n' +
+      '- monthly: { kind: "monthly", day: 1-28, hour, minute }.\n' +
+      'REGRA: "daqui a X / em X min/horas" → SEMPRE "in". "amanhã/dia X às H" → "once". (Aceita também o alias `when` em texto, ex: "daqui 5 minutos".)',
     ),
+  // Alias de compatibilidade: modelos às vezes mandam o tempo como string
+  // ("in 1 hour", "daqui 5 minutos") em vez do objeto `preset`. Convertido no handler.
+  when: z
+    .string()
+    .max(100)
+    .optional()
+    .describe('Alias em texto de `preset` para tempo relativo (ex: "daqui 5 minutos", "em 2 horas"). Prefira `preset`.'),
+  // Alias adicional: modelos às vezes mandam `schedule` como string de tempo.
+  schedule: z
+    .string()
+    .max(100)
+    .optional()
+    .describe('Alias de `when` (compatibilidade). Prefira `preset`.'),
 }
 
-async function handler({ aiId, userId, title, instruction, deliveryType, target, preset }) {
-  return runTool('createScheduledTask', async () => {
-    try {
-      logger.info('createScheduledTask_attempting', {
-        title,
-        deliveryType,
-        preset_kind: preset?.kind,
-        self_target: target === 'self',
-      })
+/**
+ * Converte uma expressão relativa em texto ("daqui 5 minutos", "in 2 hours",
+ * "em 30 min") no preset { kind: "in", minutes }. Retorna null se não reconhecer
+ * — o handler então pede um preset estruturado em vez de adivinhar.
+ */
+function parseRelativeWhen(text) {
+  if (typeof text !== 'string') return null
+  const t = text.toLowerCase()
+  // Só interpreta tempo RELATIVO. Se houver marcador de horário absoluto ou
+  // recorrência (amanhã/dia/às/data/dia-da-semana), devolve null — esses casos
+  // exigem `preset` estruturado (once/daily/...), não devem virar "in".
+  if (/amanh|hoje|\bdia\b|\bàs\b|\bas\b|segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado|domingo|\d{4}-\d{2}|\d{1,2}\/\d{1,2}|\d{1,2}:\d{2}/.test(t)) {
+    return null
+  }
+  const m = t.match(/(\d+)\s*(min|minuto|minutos|minute|minutes|h|hora|horas|hour|hours)\b/)
+  if (!m) return null
+  const n = parseInt(m[1], 10)
+  if (!Number.isFinite(n) || n <= 0) return null
+  const isHour = /^h|hora|hour/.test(m[2])
+  const minutes = isHour ? n * 60 : n
+  return { kind: 'in', minutes }
+}
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+async function handler(raw) {
+  return runTool('createScheduledTask', async () => {
+    // ── Normalização (liberal no que aceita) ──────────────────────────────
+    const aiId = raw.aiId
+    const userId = raw.userId
+    const title = raw.title
+    const deliveryType = typeof raw.deliveryType === 'string' ? raw.deliveryType.toLowerCase() : raw.deliveryType
+    const target = (raw.target ?? '').toString().trim() || null
+
+    // instruction: aceita o alias `message`.
+    const instruction = (raw.instruction ?? raw.message ?? '').toString().trim()
+
+    // preset: o zod garante objeto válido ou undefined. Se ausente, tenta
+    // reconstruir de um alias em texto (`when`/`schedule`, ex: "daqui 5 min").
+    let preset = raw.preset
+    if (!preset) {
+      preset = parseRelativeWhen(raw.when ?? raw.schedule) || undefined
+    }
+
+    // ── Validação acionável (erros que a IA consegue corrigir sozinha) ────
+    if (instruction.length < 3) {
+      return fail(
+        'INVALID_PARAMETERS',
+        'Faltou `instruction`: escreva a MENSAGEM final que o destinatário vai receber (ex: "Diga: Não esqueça da reunião."), não uma confirmação de agendamento.',
+        { toolName: 'createScheduledTask', retryable: false },
+      )
+    }
+    if (!preset) {
+      return fail(
+        'INVALID_PARAMETERS',
+        'Faltou `preset`: defina quando executar. Para "daqui a X" use { kind: "in", minutes: N }; para data fixa use { kind: "once", date, hour, minute }.',
+        { toolName: 'createScheduledTask', retryable: false },
+      )
+    }
+    if (deliveryType === 'email' && (!target || !EMAIL_RE.test(target))) {
+      return fail(
+        'INVALID_PARAMETERS',
+        'deliveryType "email" exige `target` com um e-mail válido (ex: "user@empresa.com"). Peça o e-mail ao usuário se não tiver.',
+        { toolName: 'createScheduledTask', retryable: false },
+      )
+    }
+    if (deliveryType === 'whatsapp' && !target) {
+      return fail(
+        'INVALID_PARAMETERS',
+        'deliveryType "whatsapp" exige `target` (número, ex: "5562999990000", ou "self" se a conversa for no WhatsApp). Sem WhatsApp na conversa, use "email" com o endereço do usuário.',
+        { toolName: 'createScheduledTask', retryable: false },
+      )
+    }
+
+    logger.info('createScheduledTask_attempting', {
+      title,
+      deliveryType,
+      preset_kind: preset?.kind,
+      self_target: target === 'self',
+      normalized_from_alias: !raw.instruction && !!instruction,
+    })
+
+    try {
       const response = await auroraClient.post('/mcp/schedules/create', {
-        aiId, // injetado pelo Aurora (ToolExecutor) — IA chamadora
-        userId, // injetado pelo Aurora — usado pra resolver target "self"
+        aiId,
+        userId,
         title,
         instruction,
         deliveryType,
-        target: target || null,
+        target: deliveryType === 'internal' ? null : target,
         preset,
       })
 
@@ -186,18 +247,10 @@ async function handler({ aiId, userId, title, instruction, deliveryType, target,
       })
 
       if (error?.response?.status === 400) {
-        return fail(
-          'INVALID_PARAMETERS',
-          message,
-          { toolName: 'createScheduledTask', retryable: false },
-        )
+        return fail('INVALID_PARAMETERS', message, { toolName: 'createScheduledTask', retryable: false })
       }
       if (error?.response?.status === 404) {
-        return fail(
-          'AI_NOT_FOUND',
-          message,
-          { toolName: 'createScheduledTask', retryable: false },
-        )
+        return fail('AI_NOT_FOUND', message, { toolName: 'createScheduledTask', retryable: false })
       }
       if (error?.response?.status === 500) {
         return fail(
