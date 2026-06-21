@@ -1,6 +1,6 @@
 {
   "name": "@expertcustom/mcp-chatbot-core",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "MCP server com as tools core do Aurora: memoria temporaria, WhatsApp via WAHA, detector de reset de contexto e criacao de agendamentos",
   "license": "UNLICENSED",
   "type": "module",
