@@ -3,16 +3,14 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { logger } from './src/lib/logger.js'
 import { closeRedis } from './src/lib/redis.js'
-import { sendMessageToWhatsApp } from './src/tools/sendMessageToWhatsApp.js'
 import { createScheduledTask } from './src/tools/createScheduledTask.js'
 
 const server = new McpServer({
   name: 'mcp-chatbot-core',
-  version: '1.5.0',
+  version: '1.6.0',
 })
 
 const tools = [
-  sendMessageToWhatsApp,
   createScheduledTask,
 ]
 

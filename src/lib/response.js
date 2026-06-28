@@ -24,7 +24,7 @@ export function ok(data = {}) {
  * Erro padronizado.
  *
  *  - `code`: string estavel pra IA poder se preparar pra falha (ex:
- *    REDIS_DOWN, INVALID_KEY, WAHA_UNREACHABLE). NUNCA use a mensagem
+ *    REDIS_DOWN, INVALID_KEY, MISSING_TARGET). NUNCA use a mensagem
  *    interna do exception aqui — coloca um valor que faca parte de um
  *    enum.
  *  - `message`: texto human-readable pra IA explicar pro usuario.

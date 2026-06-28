@@ -32,18 +32,11 @@ export const config = Object.freeze({
     baseUrl: requireString('AURORA_BASE_URL', 'http://localhost:3334'),
     timeoutMs: readInt('AURORA_TIMEOUT_MS', 10000),
   },
-  waha: {
-    baseUrl: requireString('WAHA_BASE_URL', 'http://localhost:3000'),
-    session: requireString('WAHA_SESSION', 'default'),
-    apiKey: process.env.WAHA_API_KEY || '',
-    timeoutMs: readInt('WAHA_TIMEOUT_MS', 10000),
-  },
   // Limites de payload pra evitar abuso/JSON-bomb via tool args.
   limits: {
     keyMaxLength: readInt('TEMP_KEY_MAX_LENGTH', 128),
     dataMaxBytes: readInt('TEMP_DATA_MAX_BYTES', 64 * 1024), // 64 KB
     ttlMaxSeconds: readInt('TEMP_TTL_MAX_SECONDS', 24 * 60 * 60), // 24h
     ttlDefaultSeconds: readInt('TEMP_TTL_DEFAULT_SECONDS', 3600), // 1h
-    messageMaxLength: readInt('WAHA_MESSAGE_MAX_LENGTH', 4096),
   },
 })
